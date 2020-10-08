@@ -2,7 +2,7 @@ import * as React from 'react';
 import {useForm} from "react-hook-form";
 import {useEffect,useState} from "react";
 
-import { Box, Button, Radio, FormControl, FormControlLabel, FormLabel, makeStyles, RadioGroup, TextField, Theme, MenuItem } from '@material-ui/core';
+import { Box, Button, makeStyles, TextField, Theme, MenuItem } from '@material-ui/core';
 import {ButtonProps} from "@material-ui/core/Button";
 import categoryHttp from '../../util/http/category-http';
 import genreHttp from "../../util/http/genre-http";
@@ -66,7 +66,7 @@ export const Form = () => {
                 variant={'outlined'}
                 fullWidth
                 onChange={(e) => {
-                    setValue('categories_id', e.target.value);
+                    setValue('categories_id', e.target.value as any);
                 }}
                 SelectProps={{
                     multiple: true
