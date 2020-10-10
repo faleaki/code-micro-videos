@@ -3,6 +3,7 @@ import { Box, Button, Checkbox, makeStyles, TextField, Theme } from '@material-u
 import {ButtonProps} from "@material-ui/core/Button";
 import {useForm} from "react-hook-form";
 import categoryHttp from "../../util/http/category-http";
+import * as yup from 'yup';
 
 const useStyles = makeStyles((theme: Theme) => {
     return {
@@ -10,7 +11,12 @@ const useStyles = makeStyles((theme: Theme) => {
             margin: theme.spacing(1)
         }
     }
-})
+});
+
+const validationSchema = yup.object().shape({
+    name: yup.string()
+        .required(),
+});
 
 export const Form = () => {
 
@@ -18,17 +24,25 @@ export const Form = () => {
 
     const buttonProps: ButtonProps = {
         className: classes.submit,
-        variant: "outlined",
+        color: 'secondary',
+        variant: "contained",
     };
 
-    const {register, handleSubmit} = useForm();
+    const {register, handleSubmit, getValues, errors} = useForm({
+        validationSchema,
+        defaultValues: {
+            name: '',
+            is_active: true
+        },
+    });
 
-    function onSubmit(formData) {
+    function onSubmit(formData, event) {
+        console.log(event);
         categoryHttp
             .create(formData)
             .then((response) => console.log(response));
     }
-
+    console.log(errors);
     return(
         <form onSubmit={handleSubmit(onSubmit)}>
             <TextField
@@ -36,8 +50,19 @@ export const Form = () => {
                 label="Nome"
                 fullWidth
                 variant={"outlined"}
-                inputRef={register}
+                inputRef={register({
+                    required: 'O campo nome é requerido',
+                    maxLength: {
+                        value: 2,
+                        message: 'O máximo de caracteres é 2'
+                    }
+                })}
+                error={true}
             />
+            {
+                errors.name && errors.name.type === 'required' && 
+                (<p>{errors.name.message}</p>)
+            }
             <TextField
                 name="description"
                 label="Descrição"
@@ -50,11 +75,19 @@ export const Form = () => {
             />
             <Checkbox
                 name="is_active"
+                color={"primary"}
                 inputRef={register}
+                defaultChecked
             />
             Ativo?
             <Box dir={"rtl"}>
-                <Button {...buttonProps}>Salvar</Button>
+                <Button 
+                    color={"primary"}
+                    {...buttonProps}
+                    onClick={() => onSubmit(getValues(), null)}
+                >
+                    Salvar
+                </Button>
                 <Button {...buttonProps} type="submit">Salvar e continuar editando</Button>
             </Box>
         </form>

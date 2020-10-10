@@ -20,7 +20,8 @@ export const Form = () => {
 
     const buttonProps: ButtonProps = {
         className: classes.submit,
-        variant: "outlined",
+        color: 'secondary',
+        variant: "contained",
     };
 
     const {register, handleSubmit, getValues, setValue} = useForm();
@@ -52,8 +53,8 @@ export const Form = () => {
                     onChange={(e) => {
                         setValue('type', parseInt(e.target.value));
                     }}>
-                    <FormControlLabel value="1" control={<Radio/>} label="Director"/>
-                    <FormControlLabel value="2" control={<Radio/>} label="Ator"/>
+                    <FormControlLabel value="1" control={<Radio color={"primary"}/>} label="Director"/>
+                    <FormControlLabel value="2" control={<Radio color={"primary"}/>} label="Ator"/>
                 </RadioGroup>
             </FormControl>
             <Box dir={"rtl"}>
