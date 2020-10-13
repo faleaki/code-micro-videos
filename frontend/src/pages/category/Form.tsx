@@ -3,6 +3,8 @@ import { Box, Button, Checkbox, makeStyles, TextField, Theme } from '@material-u
 import {ButtonProps} from "@material-ui/core/Button";
 import {useForm} from "react-hook-form";
 import categoryHttp from "../../util/http/category-http";
+
+import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 
 const useStyles = makeStyles((theme: Theme) => {
@@ -14,8 +16,7 @@ const useStyles = makeStyles((theme: Theme) => {
 });
 
 const validationSchema = yup.object().shape({
-    name: yup.string()
-        .required(),
+    name: yup.string().required()
 });
 
 export const Form = () => {
@@ -29,9 +30,9 @@ export const Form = () => {
     };
 
     const {register, handleSubmit, getValues, errors} = useForm({
-        validationSchema,
+        resolver: yupResolver(validationSchema),
         defaultValues: {
-            name: '',
+            name: null,
             is_active: true
         },
     });
@@ -42,7 +43,7 @@ export const Form = () => {
             .create(formData)
             .then((response) => console.log(response));
     }
-    console.log(errors);
+    console.log("ERROS:"+errors.name);
     return(
         <form onSubmit={handleSubmit(onSubmit)}>
             <TextField
@@ -57,7 +58,7 @@ export const Form = () => {
                         message: 'O máximo de caracteres é 2'
                     }
                 })}
-                error={true}
+                error={errors.name !== undefined}
             />
             {
                 errors.name && errors.name.type === 'required' && 
