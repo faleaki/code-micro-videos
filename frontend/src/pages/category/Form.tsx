@@ -1,11 +1,14 @@
 import * as React from 'react';
-import { Box, Button, Checkbox, makeStyles, TextField, Theme } from '@material-ui/core';
+import { Box, Button, Checkbox, FormControlLabel, makeStyles, TextField, Theme } from '@material-ui/core';
 import {ButtonProps} from "@material-ui/core/Button";
 import {useForm} from "react-hook-form";
 import categoryHttp from "../../util/http/category-http";
 
 import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
+import * as yup from '../../util/vendor/yup';
+import { useParams,useHistory } from 'react-router';
+import { useState,useEffect } from 'react';
+import {useSnackbar} from "notistack";
 
 const useStyles = makeStyles((theme: Theme) => {
     return {
@@ -16,20 +19,14 @@ const useStyles = makeStyles((theme: Theme) => {
 });
 
 const validationSchema = yup.object().shape({
-    name: yup.string().required()
+    name: yup.string().label('Nome').required().max(255)
 });
 
 export const Form = () => {
 
     const classes = useStyles();
 
-    const buttonProps: ButtonProps = {
-        className: classes.submit,
-        color: 'secondary',
-        variant: "contained",
-    };
-
-    const {register, handleSubmit, getValues, errors} = useForm({
+    const {register, handleSubmit, getValues, setValue, errors, reset, watch} = useForm({
         resolver: yupResolver(validationSchema),
         defaultValues: {
             name: null,
@@ -37,13 +34,68 @@ export const Form = () => {
         },
     });
 
-    function onSubmit(formData, event) {
-        console.log(event);
+    const snackbar = useSnackbar();
+    const history = useHistory();
+    const {id} = useParams();
+    const [category, setCategory] = useState<{id: string} | null >(null);
+    const [loading, setLoading] = useState<boolean>(false);
+
+    const buttonProps: ButtonProps = {
+        className: classes.submit,
+        color: 'secondary',
+        variant: "contained",
+        disabled: loading
+    };
+
+    useEffect( () => {
+        register({name: "is_active"})
+    }, [register]);
+
+    useEffect( () => {
+        if (!id) {
+            return;
+        }
+        setLoading(true);
         categoryHttp
-            .create(formData)
-            .then((response) => console.log(response));
+            .get(id)
+            .then(({data}) => {
+                setCategory(data.data)
+                reset(data.data)
+            })
+            .finally( () => setLoading(false))
+    }, []);
+
+    function onSubmit(formData, event) {
+        setLoading(true);
+        const http = !category
+            ? categoryHttp.create(formData)
+            : categoryHttp.update(category.id, formData);
+        console.log(event);
+        http
+            .then(({data}) => {
+                snackbar.enqueueSnackbar(
+                    'Categoria salva com sucesso',
+                    {variant: 'success'}
+                )
+                setTimeout( () => {
+                    event
+                        ? (
+                            id ? history.replace(`/categories/${data.data.id}/edit`)
+                            : history.push(`/categories/${data.data.id}/edit`)
+                        )
+                        : history.push('/categories')
+                });
+            })
+            .catch((error) => {
+                console.log(error);
+                snackbar.enqueueSnackbar(
+                    'Não foi possível salvar a categoria',
+                    {variant: 'error'}
+                )
+            })
+            .finally(() => setLoading(false))
     }
-    console.log("ERROS:"+errors.name);
+    
     return(
         <form onSubmit={handleSubmit(onSubmit)}>
             <TextField
@@ -51,19 +103,12 @@ export const Form = () => {
                 label="Nome"
                 fullWidth
                 variant={"outlined"}
-                inputRef={register({
-                    required: 'O campo nome é requerido',
-                    maxLength: {
-                        value: 2,
-                        message: 'O máximo de caracteres é 2'
-                    }
-                })}
+                inputRef={register}
+                disabled={loading}
                 error={errors.name !== undefined}
+                helperText={errors.name && errors.name.message}
+                InputLabelProps={{shrink: true}}
             />
-            {
-                errors.name && errors.name.type === 'required' && 
-                (<p>{errors.name.message}</p>)
-            }
             <TextField
                 name="description"
                 label="Descrição"
@@ -73,14 +118,24 @@ export const Form = () => {
                 variant={"outlined"}
                 margin={"normal"}
                 inputRef={register}
+                disabled={loading}
+                InputLabelProps={{shrink: true}}
             />
-            <Checkbox
-                name="is_active"
-                color={"primary"}
-                inputRef={register}
-                defaultChecked
+            <FormControlLabel 
+                disabled={loading}
+                control={
+                    <Checkbox
+                        name="is_active"
+                        color={"primary"}
+                        onChange={ 
+                            () => setValue('is_active', !getValues()['is_active'])
+                        }
+                        checked={watch('is_active')}
+                    />
+                }
+                label={'Ativo?'}
+                labelPlacement={'end'}
             />
-            Ativo?
             <Box dir={"rtl"}>
                 <Button 
                     color={"primary"}
