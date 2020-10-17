@@ -9,14 +9,9 @@ import * as yup from '../../util/vendor/yup';
 import { useParams,useHistory } from 'react-router';
 import { useState,useEffect } from 'react';
 import {useSnackbar} from "notistack";
-
-const useStyles = makeStyles((theme: Theme) => {
-    return {
-        submit: {
-            margin: theme.spacing(1)
-        }
-    }
-});
+import { Category } from '../../util/models';
+import SubmitActions from "../../components/SubmitActions";
+import {DefaultForm} from "../../components/DefaultForm";
 
 const validationSchema = yup.object().shape({
     name: yup.string().label('Nome').required().max(255)
@@ -24,9 +19,7 @@ const validationSchema = yup.object().shape({
 
 export const Form = () => {
 
-    const classes = useStyles();
-
-    const {register, handleSubmit, getValues, setValue, errors, reset, watch} = useForm({
+    const {register, handleSubmit, getValues, setValue, errors, reset, watch, trigger} = useForm({
         resolver: yupResolver(validationSchema),
         defaultValues: {
             name: null,
@@ -37,67 +30,74 @@ export const Form = () => {
     const snackbar = useSnackbar();
     const history = useHistory();
     const {id} = useParams();
-    const [category, setCategory] = useState<{id: string} | null >(null);
+    const [category, setCategory] = useState<Category | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
-
-    const buttonProps: ButtonProps = {
-        className: classes.submit,
-        color: 'secondary',
-        variant: "contained",
-        disabled: loading
-    };
-
-    useEffect( () => {
-        register({name: "is_active"})
-    }, [register]);
 
     useEffect( () => {
         if (!id) {
             return;
         }
-        setLoading(true);
-        categoryHttp
-            .get(id)
-            .then(({data}) => {
-                setCategory(data.data)
-                reset(data.data)
-            })
-            .finally( () => setLoading(false))
-    }, []);
+        let isSubscribed = true;
 
-    function onSubmit(formData, event) {
+        (async function getCategory() {
+            setLoading(true);
+            try {
+                const {data} = await categoryHttp.get(id);
+                if (isSubscribed){ 
+                    setCategory(data.data);
+                    reset(data.data);
+                }
+            } catch (error) {
+                console.error(error);
+                snackbar.enqueueSnackbar(
+                    'Não foi possível carregar as informações',
+                    {variant: 'error',}
+                )
+            } finally {
+                setLoading(false);
+            }
+        })();
+        return () => {
+            isSubscribed = false;
+        }
+    }, []);
+    
+    useEffect( () => {
+        register({name: "is_active"})
+    }, [register]);
+
+    async function onSubmit(formData, event) {
         setLoading(true);
-        const http = !category
-            ? categoryHttp.create(formData)
-            : categoryHttp.update(category.id, formData);
-        console.log(event);
-        http
-            .then(({data}) => {
-                snackbar.enqueueSnackbar(
-                    'Categoria salva com sucesso',
-                    {variant: 'success'}
-                )
-                setTimeout( () => {
-                    event
-                        ? (
-                            id ? history.replace(`/categories/${data.data.id}/edit`)
+        try {
+            const http = !category
+                ? categoryHttp.create(formData)
+                : categoryHttp.update(category.id, formData);
+            const {data} = await http;
+            snackbar.enqueueSnackbar(
+                'Categoria salva com sucesso',
+                {variant: 'success'}
+            );
+            setTimeout( () => {
+                event
+                    ? (
+                        id ? history.replace(`/categories/${data.data.id}/edit`)
                             : history.push(`/categories/${data.data.id}/edit`)
-                        )
-                        : history.push('/categories')
-                });
-            })
-            .catch((error) => {
-                console.log(error);
-                snackbar.enqueueSnackbar(
-                    'Não foi possível salvar a categoria',
-                    {variant: 'error'}
-                )
-            })
-            .finally(() => setLoading(false))
+                    )
+                    : history.push('/categories')
+            });
+        } catch (error) {
+            console.error(error);
+            snackbar.enqueueSnackbar(
+                'Não foi possível salvar a categoria',
+                {variant: 'error'}
+            )
+        } finally {
+            setLoading(false)
+        }
     }
     
     return(
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <DefaultForm GridItemProps={{xs: 12, md: 6}} onSubmit={handleSubmit(onSubmit)}>
             <TextField
                 name="name"
                 label="Nome"
@@ -136,16 +136,14 @@ export const Form = () => {
                 label={'Ativo?'}
                 labelPlacement={'end'}
             />
-            <Box dir={"rtl"}>
-                <Button 
-                    color={"primary"}
-                    {...buttonProps}
-                    onClick={() => onSubmit(getValues(), null)}
-                >
-                    Salvar
-                </Button>
-                <Button {...buttonProps} type="submit">Salvar e continuar editando</Button>
-            </Box>
-        </form>
+            <SubmitActions
+                disabledButtons={loading}
+                handleSave={() => 
+                    trigger().then(isValid => {
+                    isValid && onSubmit(getValues(), null)
+                })
+                }
+            />
+        </DefaultForm>
     );
 };

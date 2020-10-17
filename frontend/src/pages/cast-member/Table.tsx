@@ -6,6 +6,8 @@ import { Chip } from '@material-ui/core';
 
 import format from "date-fns/format";
 import parseISO from "date-fns/parseISO";
+import castMemberHttp from '../../util/http/cast-member-http';
+import { CastMember } from '../../util/models';
 
 const CastMemberTypeMap = {
     1: 'Director',
@@ -39,12 +41,21 @@ const columnDefinitions: MUIDataTableColumn[] = [
 
 type Props = {};   
 const Table = (props: Props) => {
-    const [data, setData] = useState([]);
-    useEffect(() =>{
-        httpVideo.get('cast_members').then(
-            response => setData(response.data.data)
-        )
-    })
+    const [data, setData] = useState<CastMember[]>([]);
+    useEffect(() => {
+        let isSubscribed = true;
+        (async () => {
+            const {data} = await castMemberHttp.list();
+            if (isSubscribed) {
+                setData(data.data);
+            }
+        })();
+
+        return () => {
+            isSubscribed = false;
+        }
+    }, []);
+
     return (
         <MUIDataTable
             title="Listagem de Membros de elencos"

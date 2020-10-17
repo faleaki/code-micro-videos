@@ -2,6 +2,7 @@ import * as React from 'react';
 import MUIDataTable, {MUIDataTableColumn} from 'mui-datatables';
 import {useEffect, useState} from 'react';
 import {httpVideo} from "../../util/http";
+import genreHttp from "../../util/http/genre-http";
 import { Chip } from '@material-ui/core';
 
 import format from "date-fns/format";
@@ -41,12 +42,22 @@ const columnDefinitions: MUIDataTableColumn[] = [
 
 type Props = {};   
 const Table = (props: Props) => {
+
     const [data, setData] = useState([]);
-    useEffect(() =>{
-        httpVideo.get('genres').then(
-            response => setData(response.data.data)
-        )
-    })
+    useEffect( () => {
+        let isSubscribed = true;
+        (async () => {
+            const {data} = await genreHttp.list();
+            if (isSubscribed) {
+                setData(data.data);
+            }
+        })();
+        
+        return () => {
+            isSubscribed = false;
+        }
+    }, []);
+
     return (
         <MUIDataTable
             title="Listagem de gêneros"
