@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\CategoryResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\ResourceCollection;
+use App\Models\Category;
 
 abstract class BasicCrudController extends Controller
 {
@@ -23,13 +24,15 @@ abstract class BasicCrudController extends Controller
 
     public function index()
     {
-        //return $this->model()::all(); API Resource com action index alteração
+        return Category::filter(\Request::all())->get();
+        /*
         $data = !$this->paginationSize ? $this->model()::all(): $this->model()::paginate($this->paginationSize);
         $resourceCollectionClass = $this->resourceCollection();
         $refClass = new \ReflectionClass($this->resourceCollection());
         return $refClass->isSubclassOf(ResourceCollection::class)
             ? new $resourceCollectionClass($data)
             : $resourceCollectionClass::collection($data);
+        */
     }
 
     public function store(Request $request)
@@ -47,7 +50,7 @@ abstract class BasicCrudController extends Controller
         $keyName = (new $model)->getRouteKeyName();
         return $this->model()::where($keyName, $id)->firstOrFail();
     }
-  
+
     public function show($id)
     {
         $obj = $this->findOrFail($id);
