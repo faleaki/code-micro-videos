@@ -1,16 +1,30 @@
-    import * as React from 'react';
-import {MUIDataTableColumn} from 'mui-datatables';
-import {useEffect, useState} from 'react';
+import * as React from 'react';
+import {MUIDataTableColumn, MUIDataTableMeta} from 'mui-datatables';
+import {useEffect, useState, useRef} from 'react';
 import {httpVideo} from "../../util/http";
-import { Chip, Snackbar } from '@material-ui/core';
+import { Chip, IconButton, MuiThemeProvider, Snackbar } from '@material-ui/core';
 
 import format from "date-fns/format";
 import parseISO from "date-fns/parseISO";
 import categoryHttp from '../../util/http/category-http';
 import { BadgeYes, BadgeNo } from '../../components/Badge';
 import { ListResponse,Category } from '../../util/models';
-import DefaultTable, { TableColumn } from '../../components/Table';
+import DefaultTable, { TableColumn,makeActionStyles } from '../../components/Table';
 import { useSnackbar } from 'notistack';
+import {Link} from "react-router-dom";
+import EditIcon from '@material-ui/icons/Edit';
+import { cloneDeep } from 'lodash';
+
+interface Pagination {
+    page: number;
+    total: number;
+    per_page: number;
+}
+
+interface SearchState {
+    search: string;
+    pagination: Pagination;
+}
 
 const columnDefinitions: TableColumn[] = [
     {
@@ -29,19 +43,19 @@ const columnDefinitions: TableColumn[] = [
     {
         name: "is_active",
         label: "Ativo?",
+        width: '4%',
         options: {
             customBodyRender(value, tableMeta, updateValue) {
                 return value ? <BadgeYes/> : <BadgeNo/>;
             }
         },
-        width: '4%'
     },
     {
         name: "created_at",
         label: "Criado em",
         width: '10%',
         options: {
-            customBodyRender(value, tableMeta, updateValue) {
+            customBodyRender(value, tableMeta: MUIDataTableMeta, updateValue) {
             return <span>{format(parseISO(value), 'dd/MM/yyyy')}</span>
             }
         }
@@ -49,7 +63,22 @@ const columnDefinitions: TableColumn[] = [
     {
         name: "Actions",
         label: "Ações",
-        width: '10%'
+        width: '13%',
+        options: {
+            sort: false,
+            customBodyRender: (value, tableMeta) => {
+                //console.log(tableMeta);
+                return (
+                    <IconButton
+                        color={'secondary'}
+                        component={Link}
+                        to={`/categories/${tableMeta.rowData[0]}/edit`}
+                    >
+                        <EditIcon/>
+                    </IconButton>
+                )
+            }
+        }
     },
 ]
 /*
@@ -58,20 +87,40 @@ interface Category{
     name: string;
 }
 */
-type Props = {};   
+type Props = {};
+
 const Table = (props: Props) => {
 
     const snackbar = useSnackbar();
+    const subscribed = useRef(true);
     const [data, setData] = useState<Category[]>([]);
     const[loading, setLoading] = useState<boolean>(false);
+    const [searchState, setSearchState] = useState<SearchState>({
+        search: 'asdfasdf',
+        pagination: {
+            page: 1,
+            total: 0,
+            per_page: 10
+        }
+    });
 
     useEffect( () => {
-        let isSubscribed = true;
-        (async () => {
-            setLoading(true);
+        subscribed.current = true;
+        getData();
+        return () => {
+            subscribed.current = false;
+        }
+    }, [searchState]);
+
+    async function getData(){
+        setLoading(true);
             try {
-                const {data} = await categoryHttp.list<ListResponse<Category>>();
-                if (isSubscribed) {
+                const {data} = await categoryHttp.list<ListResponse<Category>>({
+                    queryParams: {
+                        search: searchState.search
+                    }
+                });
+                if (subscribed.current) {
                     setData(data.data);
                 }
             } catch (error){
@@ -83,21 +132,28 @@ const Table = (props: Props) => {
             } finally {
                 setLoading(false);
             }
-        })();
-
-        return () => {
-            isSubscribed = false;
-        }
-    }, []);
+    }
 
     return (
-        <DefaultTable
-            title=""
-            columns={columnDefinitions}
-            data={data}
-            loading={loading}
-            options={{responsive: "standard"}}
-        />
+        <MuiThemeProvider theme={makeActionStyles(columnDefinitions.length-1)}>
+            <DefaultTable
+                title=""
+                columns={columnDefinitions}
+                data={data}
+                loading={loading}
+                options={{
+                    responsive: "standard",
+                    searchText: searchState.search,
+                    page: searchState.pagination.page,
+                    rowsPerPage: searchState.pagination.page,
+                    onSearchChange: (value) => setSearchState((prevState => ({
+                        ...prevState,
+                        search: value
+                        }
+                    )))
+                }}
+            />
+        </MuiThemeProvider>
     );
 };
 
