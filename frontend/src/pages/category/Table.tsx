@@ -1,6 +1,6 @@
 import * as React from 'react';
 import {MUIDataTableColumn, MUIDataTableMeta} from 'mui-datatables';
-import {useEffect, useState, useRef} from 'react';
+import {useEffect, useState, useRef, useReducer} from 'react';
 import {httpVideo} from "../../util/http";
 import { Chip, IconButton, MuiThemeProvider, Snackbar } from '@material-ui/core';
 
@@ -13,7 +13,9 @@ import DefaultTable, { TableColumn,makeActionStyles } from '../../components/Tab
 import { useSnackbar } from 'notistack';
 import {Link} from "react-router-dom";
 import EditIcon from '@material-ui/icons/Edit';
-import { cloneDeep } from 'lodash';
+import { get,cloneDeep } from 'lodash';
+import { FilterResetButton } from '../../components/Table/FilterResetButton';
+import reducer, {INITIAL_STATE, Creators} from '../../store/search/index';
 
 interface Pagination {
     page: number;
@@ -21,12 +23,18 @@ interface Pagination {
     per_page: number;
 }
 
+interface Order {
+    sort: string | null;
+    dir: string | null;
+}
+
 interface SearchState {
     search: string;
     pagination: Pagination;
+    order: Order;
 }
 
-const columnDefinitions: TableColumn[] = [
+const columnsDefinition: TableColumn[] = [
     {
         name: 'id',
         label: 'ID',
@@ -38,7 +46,7 @@ const columnDefinitions: TableColumn[] = [
     {
         name: "name",
         label: "Nome",
-        width: '43%'
+        width: '43%',
     },
     {
         name: "is_active",
@@ -81,28 +89,27 @@ const columnDefinitions: TableColumn[] = [
         }
     },
 ]
-/*
-interface Category{
-    id: string;
-    name: string;
-}
-*/
-type Props = {};
 
-const Table = (props: Props) => {
-
+const Table = () => {
     const snackbar = useSnackbar();
     const subscribed = useRef(true);
     const [data, setData] = useState<Category[]>([]);
     const[loading, setLoading] = useState<boolean>(false);
-    const [searchState, setSearchState] = useState<SearchState>({
-        search: 'asdfasdf',
-        pagination: {
-            page: 1,
-            total: 0,
-            per_page: 10
-        }
+    const [searchState, dispatch] = useReducer(reducer, INITIAL_STATE);
+    //const [searchState, setSearchState] = useState<SearchState>(initialState);
+
+    const columns = columnsDefinition.map( column => {
+        return column.name === searchState.order.sort
+            ? {
+                ...column,
+                options: {
+                    ...column.options,
+                    sortDirection: searchState.order.dir as any
+                }
+            }
+            : column;
     });
+
 
     useEffect( () => {
         subscribed.current = true;
@@ -110,21 +117,39 @@ const Table = (props: Props) => {
         return () => {
             subscribed.current = false;
         }
-    }, [searchState]);
+    }, [searchState.search,
+        searchState.pagination.page,
+        searchState.pagination.per_page,
+        searchState.order
+    ]);
 
     async function getData(){
         setLoading(true);
             try {
                 const {data} = await categoryHttp.list<ListResponse<Category>>({
                     queryParams: {
-                        search: searchState.search
+                        search: cleanSearchText(searchState.search),
+                        page: searchState.pagination.page,
+                        per_page: searchState.pagination.per_page,
+                        sort: searchState.order.sort,
+                        dir: searchState.order.dir,
                     }
                 });
                 if (subscribed.current) {
                     setData(data.data);
+                    //setSearchState((prevState => ({
+                    //    ...prevState,
+                    //    pagination: {
+                    //        ...prevState.pagination,
+                    //        total: data.meta.total
+                    //    }
+                    //})))
                 }
             } catch (error){
                 console.error(error);
+                if (categoryHttp.isCancelledRequest(error)){
+                    return;
+                }
                 snackbar.enqueueSnackbar(
                     'Não foi possível carregar as informações',
                     {variant: 'error',}
@@ -134,23 +159,45 @@ const Table = (props: Props) => {
             }
     }
 
+    function cleanSearchText(text){
+        let newText = text;
+        if (text && text.value !== undefined) {
+            newText = text.value;
+        }
+        return newText;
+    }
+
     return (
-        <MuiThemeProvider theme={makeActionStyles(columnDefinitions.length-1)}>
+        <MuiThemeProvider theme={makeActionStyles(columnsDefinition.length-1)}>
             <DefaultTable
                 title=""
-                columns={columnDefinitions}
+                columns={columns}
                 data={data}
                 loading={loading}
+                debouncedSearchTime={500}
                 options={{
+                    serverSide: true,
                     responsive: "standard",
-                    searchText: searchState.search,
-                    page: searchState.pagination.page,
-                    rowsPerPage: searchState.pagination.page,
-                    onSearchChange: (value) => setSearchState((prevState => ({
-                        ...prevState,
-                        search: value
-                        }
-                    )))
+                    searchText: searchState.search as any,
+                    page: searchState.pagination.page - 1,
+                    rowsPerPage: searchState.pagination.per_page,
+                    count: searchState.pagination.total,
+                    customToolbar: () => (
+                        <FilterResetButton 
+                            handleClick= { () => {
+                                //dispatch( {type: 'reset'})}
+                            }}
+                        />
+                    ),
+                    onSearchChange: (value) => dispatch(Creators.setSearch({search: value as string})),
+                    onChangePage: (page) => dispatch(Creators.setPage({page: page + 1})),
+                    onChangeRowsPerPage: (perPage) => dispatch(Creators.setPerPage({per_page: perPage})),
+                    onColumnSortChange: (changedColumn: string, direction: string) => 
+                        dispatch(Creators.setOrder({
+                            sort: changedColumn,
+                            dir: direction.includes('desc') ? 'desc' : 'asc',
+                        })
+                    ),
                 }}
             />
         </MuiThemeProvider>
